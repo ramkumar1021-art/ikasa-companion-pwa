@@ -5,10 +5,11 @@ import { Button } from '@/components/ui/button';
 import { useStore } from '@/store/useStore';
 import { getSession, selectCharacter, type Character } from '@/services/api';
 import { OnboardingLayout } from '@/components/OnboardingLayout';
+import { supabase } from '@/integrations/supabase/client';
 
 export default function CharacterScreen() {
   const navigate = useNavigate();
-  const { userId, setCharacters, selectCharacter: storeSelectCharacter, setScenarios, setOnboardingStep } = useStore();
+  const { setCharacters, selectCharacter: storeSelectCharacter, setScenarios, setOnboardingStep } = useStore();
   const [characters, setLocalCharacters] = useState<Character[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -17,9 +18,10 @@ export default function CharacterScreen() {
 
   useEffect(() => {
     const fetchCharacters = async () => {
-      if (!userId) return;
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
       
-      const response = await getSession(userId);
+      const response = await getSession(user.id);
       
       if (response.success && response.data) {
         setLocalCharacters(response.data.characters || []);
@@ -42,7 +44,7 @@ export default function CharacterScreen() {
     };
 
     fetchCharacters();
-  }, [userId, setCharacters, setScenarios]);
+  }, [setCharacters, setScenarios]);
 
   const handleContinue = async () => {
     if (!selectedId) return;
