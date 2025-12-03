@@ -4,7 +4,11 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { useStore } from "@/store/useStore";
+import { useEffect, useState } from "react";
+import { supabase } from "@/integrations/supabase/client";
+import type { User } from "@supabase/supabase-js";
 import LoginScreen from "./screens/LoginScreen";
+import AuthScreen from "./screens/AuthScreen";
 import ProfileScreen from "./screens/ProfileScreen";
 import StyleScreen from "./screens/StyleScreen";
 import CharacterScreen from "./screens/CharacterScreen";
@@ -14,33 +18,125 @@ import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
 
-// Protected route wrapper
-function ProtectedRoute({ children, requiresOnboarding = true }: { children: React.ReactNode; requiresOnboarding?: boolean }) {
-  const { onboardingComplete, userId } = useStore();
-  
-  if (requiresOnboarding && !onboardingComplete) {
-    return <Navigate to="/" replace />;
+// Auth protected route wrapper
+function AuthRoute({ children }: { children: React.ReactNode }) {
+  const [user, setUser] = useState<User | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      (event, session) => {
+        setUser(session?.user ?? null);
+        setLoading(false);
+      }
+    );
+
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setUser(session?.user ?? null);
+      setLoading(false);
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <div className="w-10 h-10 border-4 border-primary/30 border-t-primary rounded-full animate-spin" />
+      </div>
+    );
   }
-  
-  if (!requiresOnboarding && !userId) {
-    return <Navigate to="/" replace />;
+
+  if (!user) {
+    return <Navigate to="/auth" replace />;
   }
-  
+
   return <>{children}</>;
 }
 
-// Onboarding route wrapper
+// Onboarding route wrapper - requires auth and checks onboarding step
 function OnboardingRoute({ children, minStep }: { children: React.ReactNode; minStep: number }) {
   const { onboardingStep, onboardingComplete } = useStore();
-  
+  const [user, setUser] = useState<User | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      (event, session) => {
+        setUser(session?.user ?? null);
+        setLoading(false);
+      }
+    );
+
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setUser(session?.user ?? null);
+      setLoading(false);
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <div className="w-10 h-10 border-4 border-primary/30 border-t-primary rounded-full animate-spin" />
+      </div>
+    );
+  }
+
+  if (!user) {
+    return <Navigate to="/auth" replace />;
+  }
+
   if (onboardingComplete) {
     return <Navigate to="/chat" replace />;
   }
-  
+
   if (onboardingStep < minStep) {
-    return <Navigate to="/" replace />;
+    return <Navigate to="/onboarding/profile" replace />;
   }
-  
+
+  return <>{children}</>;
+}
+
+// Protected route wrapper - requires auth and completed onboarding
+function ProtectedRoute({ children }: { children: React.ReactNode }) {
+  const { onboardingComplete } = useStore();
+  const [user, setUser] = useState<User | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      (event, session) => {
+        setUser(session?.user ?? null);
+        setLoading(false);
+      }
+    );
+
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setUser(session?.user ?? null);
+      setLoading(false);
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <div className="w-10 h-10 border-4 border-primary/30 border-t-primary rounded-full animate-spin" />
+      </div>
+    );
+  }
+
+  if (!user) {
+    return <Navigate to="/auth" replace />;
+  }
+
+  if (!onboardingComplete) {
+    return <Navigate to="/onboarding/profile" replace />;
+  }
+
   return <>{children}</>;
 }
 
@@ -51,10 +147,11 @@ const App = () => (
       <Sonner />
       <BrowserRouter>
         <Routes>
-          {/* Login */}
+          {/* Public routes */}
           <Route path="/" element={<LoginScreen />} />
+          <Route path="/auth" element={<AuthScreen />} />
           
-          {/* Onboarding Flow */}
+          {/* Onboarding Flow - requires auth */}
           <Route 
             path="/onboarding/profile" 
             element={
@@ -92,7 +189,7 @@ const App = () => (
           <Route 
             path="/chat" 
             element={
-              <ProtectedRoute requiresOnboarding={true}>
+              <ProtectedRoute>
                 <ChatScreen />
               </ProtectedRoute>
             } 

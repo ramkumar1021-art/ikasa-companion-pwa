@@ -1,35 +1,64 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Sparkles, MessageCircle, Heart } from 'lucide-react';
+import { Sparkles, MessageCircle, Heart, LogIn } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useStore } from '@/store/useStore';
-import { anonymousLogin } from '@/services/api';
+import { supabase } from '@/integrations/supabase/client';
 import { ThemeToggle } from '@/components/ThemeToggle';
+import type { User } from '@supabase/supabase-js';
 
 export default function LoginScreen() {
   const navigate = useNavigate();
-  const { deviceId, setAuth, setOnboardingStep } = useStore();
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState('');
+  const { onboardingComplete } = useStore();
+  const [user, setUser] = useState<User | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
 
-  const handleGuestLogin = async () => {
-    if (!deviceId) return;
-    
-    setIsLoading(true);
-    setError('');
-    
-    const response = await anonymousLogin(deviceId);
-    
-    if (response.success && response.data) {
-      setAuth(response.data.userId, response.data.token);
-      setOnboardingStep(1);
-      navigate('/onboarding/profile');
-    } else {
-      setError(response.error || 'Failed to login. Please try again.');
-    }
-    
-    setIsLoading(false);
+  useEffect(() => {
+    // Set up auth state listener
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      (event, session) => {
+        setUser(session?.user ?? null);
+        setIsLoading(false);
+        
+        // If user is authenticated, redirect appropriately
+        if (session?.user) {
+          if (onboardingComplete) {
+            navigate('/chat');
+          } else {
+            navigate('/onboarding/profile');
+          }
+        }
+      }
+    );
+
+    // Check for existing session
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setUser(session?.user ?? null);
+      setIsLoading(false);
+      
+      if (session?.user) {
+        if (onboardingComplete) {
+          navigate('/chat');
+        } else {
+          navigate('/onboarding/profile');
+        }
+      }
+    });
+
+    return () => subscription.unsubscribe();
+  }, [navigate, onboardingComplete]);
+
+  const handleGetStarted = () => {
+    navigate('/auth');
   };
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <div className="w-10 h-10 border-4 border-primary/30 border-t-primary rounded-full animate-spin" />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen flex flex-col items-center justify-center p-6 relative overflow-hidden">
@@ -77,25 +106,13 @@ export default function LoginScreen() {
           />
         </div>
         
-        {/* Error message */}
-        {error && (
-          <p className="text-destructive text-sm mb-4 animate-fade-in">{error}</p>
-        )}
-        
         {/* CTA Button */}
         <Button
-          onClick={handleGuestLogin}
-          disabled={isLoading}
+          onClick={handleGetStarted}
           className="animate-fade-up delay-400 w-full h-14 text-lg font-semibold gradient-primary hover:opacity-90 transition-all shadow-soft hover:shadow-glow rounded-2xl"
         >
-          {isLoading ? (
-            <span className="flex items-center gap-2">
-              <span className="w-5 h-5 border-2 border-primary-foreground/30 border-t-primary-foreground rounded-full animate-spin" />
-              Connecting...
-            </span>
-          ) : (
-            'Continue as Guest'
-          )}
+          <LogIn className="w-5 h-5 mr-2" />
+          Get Started
         </Button>
         
         <p className="animate-fade-up delay-500 text-xs text-muted-foreground mt-4 text-center">
