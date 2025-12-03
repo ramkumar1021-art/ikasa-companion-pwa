@@ -1,12 +1,11 @@
 import { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Send, ArrowLeft, MoreVertical, User, LogOut } from 'lucide-react';
+import { Send, ArrowLeft, MoreVertical, User } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useStore } from '@/store/useStore';
 import { sendMessage } from '@/services/api';
 import { ThemeToggle } from '@/components/ThemeToggle';
-import { supabase } from '@/integrations/supabase/client';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -16,10 +15,9 @@ import {
 
 export default function ChatScreen() {
   const navigate = useNavigate();
-  const { selectedCharacter, messages, addMessage, isTyping, setTyping, reset } = useStore();
+  const { userId, selectedCharacter, messages, addMessage, isTyping, setTyping, reset } = useStore();
   const [inputValue, setInputValue] = useState('');
   const [isSending, setIsSending] = useState(false);
-  const [userId, setUserId] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -30,12 +28,6 @@ export default function ChatScreen() {
   useEffect(() => {
     scrollToBottom();
   }, [messages, isTyping]);
-
-  useEffect(() => {
-    supabase.auth.getUser().then(({ data: { user } }) => {
-      setUserId(user?.id ?? null);
-    });
-  }, []);
 
   const handleSend = async () => {
     if (!inputValue.trim() || isSending || !userId) return;
@@ -84,12 +76,6 @@ export default function ChatScreen() {
 
   const handleReset = () => {
     reset();
-    navigate('/onboarding/profile');
-  };
-
-  const handleLogout = async () => {
-    await supabase.auth.signOut();
-    reset();
     navigate('/');
   };
 
@@ -131,10 +117,6 @@ export default function ChatScreen() {
           <DropdownMenuContent align="end">
             <DropdownMenuItem onClick={handleReset}>
               Start Over
-            </DropdownMenuItem>
-            <DropdownMenuItem onClick={handleLogout} className="text-destructive">
-              <LogOut className="w-4 h-4 mr-2" />
-              Sign Out
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>

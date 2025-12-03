@@ -23,6 +23,11 @@ interface Scenario {
 }
 
 interface AppState {
+  // Device & Auth
+  deviceId: string | null;
+  userId: string | null;
+  token: string | null;
+  
   // Onboarding progress
   onboardingStep: number;
   onboardingComplete: boolean;
@@ -49,6 +54,8 @@ interface AppState {
   isDarkMode: boolean;
   
   // Actions
+  setDeviceId: (id: string) => void;
+  setAuth: (userId: string, token: string) => void;
   setOnboardingStep: (step: number) => void;
   completeOnboarding: () => void;
   setProfile: (name: string, gender: string, preferredGender: string) => void;
@@ -63,8 +70,15 @@ interface AppState {
   reset: () => void;
 }
 
+const generateDeviceId = () => {
+  return 'device_' + Math.random().toString(36).substring(2) + Date.now().toString(36);
+};
+
 const initialState = {
-  onboardingStep: 1,
+  deviceId: null,
+  userId: null,
+  token: null,
+  onboardingStep: 0,
   onboardingComplete: false,
   name: '',
   gender: '',
@@ -83,6 +97,10 @@ export const useStore = create<AppState>()(
   persist(
     (set, get) => ({
       ...initialState,
+      
+      setDeviceId: (id) => set({ deviceId: id }),
+      
+      setAuth: (userId, token) => set({ userId, token }),
       
       setOnboardingStep: (step) => set({ onboardingStep: step }),
       
@@ -120,11 +138,14 @@ export const useStore = create<AppState>()(
         return { isDarkMode: newMode };
       }),
       
-      reset: () => set({ ...initialState }),
+      reset: () => set({ ...initialState, deviceId: get().deviceId }),
     }),
     {
       name: 'ikasa-storage',
       partialize: (state) => ({
+        deviceId: state.deviceId,
+        userId: state.userId,
+        token: state.token,
         onboardingStep: state.onboardingStep,
         onboardingComplete: state.onboardingComplete,
         name: state.name,
@@ -140,13 +161,19 @@ export const useStore = create<AppState>()(
   )
 );
 
-// Apply dark mode on load
+// Initialize device ID if not exists
 if (typeof window !== 'undefined') {
   const stored = localStorage.getItem('ikasa-storage');
   if (stored) {
     const parsed = JSON.parse(stored);
+    if (!parsed.state?.deviceId) {
+      useStore.getState().setDeviceId(generateDeviceId());
+    }
+    // Apply dark mode on load
     if (parsed.state?.isDarkMode) {
       document.documentElement.classList.add('dark');
     }
+  } else {
+    useStore.getState().setDeviceId(generateDeviceId());
   }
 }
